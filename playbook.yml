@@ -2,19 +2,34 @@
 - name: Deploy to Tomcat
   hosts: web
   become: yes
-  tasks:
-    - name: Copy WAR file to Tomcat
-      copy:
-        # Path updated for user 'aarav' with hidden .jenkins directory
-        src: "/home/aarav/.jenkins/workspace/2023MavenWebAppPipelineWithAnsible/target/2023MavenWebAppPipelineWithAnsible.war"
-        dest: "/opt/tomcat/webapps/2023MavenWebAppPipelineWithAnsible.war"
-        remote_src: no
-    - name: Restart Tomcat
-      systemd:
-        name: tomcat
-        shell: |
-          /opt/tomcat/bin/shutdown.sh
-          sleep 5
-          /opt/tomcat/bin/startup.sh
-        
 
+  vars:
+    # Centralizing paths makes the playbook easier to maintain
+    tomcat_home: "/opt/tomcat"
+    jenkins_workspace: "/home/aarav/.jenkins/workspace/2023MavenWebAppPipelineWithAnsible"
+    war_file: "2023MavenWebAppPipelineWithAnsible.war"
+    app_name: "2023MavenWebAppPipelineWithAnsible"
+
+  tasks:
+    - name: Copy WAR file from Jenkins workspace to Tomcat
+      copy:
+        src: "{{ jenkins_workspace }}/target/{{ war_file }}"
+        dest: "{{ tomcat_home }}/webapps/{{ war_file }}"
+        remote_src: no
+        owner: aarav
+        group: aarav
+        mode: '0644'
+
+    - name: Clear old deployment folder
+      file:
+        path: "{{ tomcat_home }}/webapps/{{ app_name }}"
+        state: absent
+
+    - name: Restart Tomcat
+      # Fixed: Using the 'shell' module directly instead of nesting it under systemd
+      shell: |
+        {{ tomcat_home }}/bin/shutdown.sh
+        sleep 2
+        {{ tomcat_home }}/bin/startup.sh
+      args:
+        executable: /bin/bash
